@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
-import { ArrowDown, Mail } from 'lucide-react';
+import { ArrowDown, Mail, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const Hero = () => {
   const scrollToProjects = () => {
@@ -48,6 +49,17 @@ export const Hero = () => {
             <ArrowDown className="w-5 h-5" />
             Explore Projects
           </Button>
+          
+          <Link to="/chat" className="w-full sm:w-auto">
+            <Button 
+              variant="secondary" 
+              size="lg" 
+              className="w-full"
+            >
+              <MessageCircle className="w-5 h-5" />
+              Join Chat
+            </Button>
+          </Link>
           
           <Button 
             variant="outline" 
