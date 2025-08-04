@@ -3,18 +3,19 @@ import { ProjectCard } from './ProjectCard';
 const projects = [
   {
     title: 'MarChat',
-    description: 'Revolutionary communication platform for modern teams. Experience seamless meetings, instant messaging, and collaborative workflows all in one place.',
+    description: 'A basic chatting platform in the works.',
     url: 'https://chat.mardev.app',
   },
   {
     title: 'MarOS',
-    description: 'Lightning-fast operating system built for developers and power users. Experience unparalleled performance and intuitive design.',
+    description: 'A very early beta operating system in the works.',
     url: 'https://os.mardev.app',
+    isComingSoon: true,
   },
   {
     title: 'MarMail',
-    description: 'Next-generation email client with AI-powered features, smart organization, and privacy-first design principles.',
-    isComingSoon: true,
+    description: 'An email client with a custom mailing protocol with extra privacy and speed in mind',
+    url: 'https://mail.mardev.app',
   },
 ];
 
@@ -27,7 +28,7 @@ export const ProjectsSection = () => {
             Our <span className="bg-gradient-primary bg-clip-text text-transparent">Projects</span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Discover the innovative solutions we're building to shape the future of technology
+            Check out the projects we're building for fun!
           </p>
         </div>
 
