@@ -1,13 +1,13 @@
 // I had to make this since the AI sold. i suck at react why did u sell so hard 😭🙏
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 
 const CALLBACK_API_URL = 'https://auth.mardev.app/token';
 const CLIENT_ID = 'mardev-app-client';
 const REDIRECT_URI = 'https://mardev.app/auth/callback';
 
 export default function AuthCallback() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [message, setMessage] = useState('Checking...');
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
@@ -67,7 +67,7 @@ export default function AuthCallback() {
         setStatus('success');
 
         setTimeout(() => {
-          router.replace('/');
+          navigate('/');
         }, 1500);
       } catch (err) {
         console.error(err);
