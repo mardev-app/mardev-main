@@ -33,7 +33,7 @@ export const Hero = () => {
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed font-light">
-            A website for everything MarDev makes, all in one cool website - there apps tools to even custom mailing protocols!
+            A website for everything MarDev makes, all in one cool website - there apps, tools to even custom mailing protocols!
             Just a cool website for MarDev Projects. btw no ads 😭🙏
           </p>
         </div>
