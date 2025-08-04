@@ -74,7 +74,7 @@ export const Hero = () => {
 
         {/* Scroll indicator */}
         <div className="animate-bounce">
-          <ArrowDown className="w-6 h-6 text-muted-foreground mx-auto" />
+          <ArrowDown fill="early" className="w-6 h-6 text-muted-foreground mx-auto " />
         </div>
       </div>
     </section>
