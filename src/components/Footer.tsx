@@ -51,14 +51,14 @@ export const Footer = () => {
                 <Mail className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
               </a>
               <a 
-                href="https://github.com/mardev" 
+                href="https://github.com/mardev-app" 
                 className="p-2 bg-gradient-glass backdrop-blur-sm border border-white/10 rounded-lg hover:border-white/20 transition-all hover:scale-105"
                 aria-label="GitHub"
               >
                 <Github className="w-5 h-5 text-muted-foreground hover:text-primary transition-colors" />
               </a>
               <a 
-                href="https://twitter.com/mardev" 
+                href="https://twitter.com/mardev-app" 
                 className="p-2 bg-gradient-glass backdrop-blur-sm border border-white/10 rounded-lg hover:border-white/20 transition-all hover:scale-105"
                 aria-label="Twitter"
               >
