@@ -1,108 +1,99 @@
-// I had to make this since the AI sold. i suck at react why did u sell so hard 😭🙏
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const CALLBACK_API_URL = 'https://auth.mardev.app/token';
-const CLIENT_ID = 'mardev-app-client';
-const REDIRECT_URI = 'https://mardev.app/auth/callback';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const [message, setMessage] = useState('Checking...');
+  const [message, setMessage] = useState('Processing authentication...');
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
-  // Cookie utilities
-  const setCookie = (name: string, value: string, days = 30) => {
-    const expires = new Date();
-    expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
-    document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/;secure;samesite=strict`;
-  };
-
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('code');
-    const error = params.get('error');
-    const error_description = params.get('error_description');
-
-    if (error) {
-      console.error('OAuth error:', error, error_description);
-      setMessage(`Authentication failed: ${error_description || error}`);
-      setStatus('error');
-      return;
-    }
-
-    if (!code) {
-      setMessage('Missing code from provider.');
-      setStatus('error');
-      return;
-    }
-
-    async function exchangeCodeForToken() {
+    const handleAuthCallback = async () => {
       try {
-        setMessage('Processing authentication...');
-        setStatus('loading');
-
-        const res = await fetch(CALLBACK_API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: CLIENT_ID,
-            code,
-            redirect_uri: REDIRECT_URI
-          })
-        });
-
-        if (!res.ok) throw new Error(`Failed to exchange token: ${res.status}`);
-        const data = await res.json();
-
-        if (!data.access_token) throw new Error('No access token returned.');
-
-        setCookie('mardev_auth', data.access_token, 30);
-        if (data.refresh_token) {
-          setCookie('mardev_refresh', data.refresh_token, 90);
+        // Get the URL hash and search params
+        const hash = window.location.hash;
+        const searchParams = new URLSearchParams(window.location.search);
+        
+        // Check for error in URL params
+        const urlError = searchParams.get('error');
+        const errorDescription = searchParams.get('error_description');
+        
+        if (urlError) {
+          console.error('OAuth error:', urlError, errorDescription);
+          setMessage(`Authentication failed: ${errorDescription || urlError}`);
+          setStatus('error');
+          setTimeout(() => navigate('/'), 3000);
+          return;
         }
 
-        setMessage('Authentication successful!');
-        setStatus('success');
+        // Handle the OAuth callback
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Session error:', error);
+          setMessage('Authentication failed: Unable to get session');
+          setStatus('error');
+          setTimeout(() => navigate('/'), 3000);
+          return;
+        }
 
-        setTimeout(() => {
-          navigate('/');
-        }, 1500);
+        if (data.session) {
+          setMessage('Authentication successful! Redirecting to setup...');
+          setStatus('success');
+          // Redirect to onboarding instead of home page
+          setTimeout(() => navigate('/onboarding'), 1500);
+        } else {
+          // If no session, try to exchange the code for a session
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
+            window.location.href
+          );
+          
+          if (exchangeError) {
+            console.error('Code exchange error:', exchangeError);
+            setMessage('Authentication failed: Unable to complete login');
+            setStatus('error');
+            setTimeout(() => navigate('/'), 3000);
+            return;
+          }
+          
+          setMessage('Authentication successful! Redirecting to setup...');
+          setStatus('success');
+          // Redirect to onboarding instead of home page
+          setTimeout(() => navigate('/onboarding'), 1500);
+        }
       } catch (err) {
-        console.error(err);
-        setMessage('Authentication failed: Unable to complete login');
+        console.error('Auth callback error:', err);
+        setMessage('Authentication failed: Unexpected error');
         setStatus('error');
+        setTimeout(() => navigate('/'), 3000);
       }
-    }
+    };
 
-    exchangeCodeForToken();
-  }, []);
+    handleAuthCallback();
+  }, [navigate]);
 
   return (
-    <div style={styles.wrapper}>
-      <h2 style={styles.text}>
-        {status === 'loading' ? '⏳' : status === 'success' ? '✅' : '❌'} {message}
-      </h2>
+    <div className="min-h-screen bg-gradient-background flex items-center justify-center">
+      <div className="bg-card border border-border rounded-lg p-8 shadow-lg max-w-md w-full mx-4">
+        <div className="text-center">
+          <div className="mb-4">
+            {status === 'loading' && (
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            )}
+            {status === 'success' && (
+              <div className="text-green-500 text-4xl mb-2">✅</div>
+            )}
+            {status === 'error' && (
+              <div className="text-red-500 text-4xl mb-2">❌</div>
+            )}
+          </div>
+          <h2 className="text-xl font-semibold mb-2">
+            {status === 'loading' ? 'Processing...' : 
+             status === 'success' ? 'Success!' : 'Error'}
+          </h2>
+          <p className="text-muted-foreground">{message}</p>
+        </div>
+      </div>
     </div>
   );
 }
-
-const styles = {
-  wrapper: {
-    minHeight: '100vh',
-    background: '#111',
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: 'Inter, sans-serif',
-  },
-  text: {
-    fontSize: '1.25rem',
-    padding: '2rem',
-    borderRadius: '12px',
-    backgroundColor: '#222',
-    boxShadow: '0 0 20px rgba(0,0,0,0.5)',
-  },
-};
