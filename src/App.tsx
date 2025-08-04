@@ -1,29 +1,62 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import ChatApp from "./chat-app";
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider } from './contexts/AuthContext';
+import { AuthStatus } from './components/AuthStatus';
+import { Hero } from './components/Hero';
+import { ProjectsSection } from './components/ProjectsSection';
+import { Footer } from './components/Footer';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { OnboardingForm } from './components/OnboardingForm';
+import AuthCallback from './pages/auth/callback';
+import './App.css';
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/chat" element={<ChatApp />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router>
+          <div className="w-screen h-screen bg-gradient-background">
+            <AuthStatus />
+            
+            <Routes>
+              <Route path="/" element={
+                <div className="w-full h-full">
+                  <Hero />
+                  <ProjectsSection />
+                  <Footer />
+                </div>
+              } />
+              
+              <Route path="/onboarding" element={<OnboardingForm />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              
+              <Route path="/chat" element={
+                <ProtectedRoute>
+                  <div className="w-screen h-screen flex items-center justify-center">
+                    <div className="text-center">
+                      <h1 className="text-4xl font-bold text-white mb-4">Chat App</h1>
+                      <p className="text-white/70">Chat functionality coming soon!</p>
+                    </div>
+                  </div>
+                </ProtectedRoute>
+              } />
+              
+              <Route path="*" element={
+                <div className="w-screen h-screen flex items-center justify-center">
+                  <div className="text-center">
+                    <h1 className="text-4xl font-bold text-white mb-4">404 - Page Not Found</h1>
+                    <p className="text-white/70">The page you're looking for doesn't exist.</p>
+                  </div>
+                </div>
+              } />
+            </Routes>
+          </div>
+        </Router>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
