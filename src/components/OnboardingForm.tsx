@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { CheckCircle, XCircle, Loader2, ArrowLeft, Sparkles, User, Mail, MessageSquare } from 'lucide-react';
 
 interface OnboardingData {
+  name: string;
   username: string;
   marmailEmail: string;
   heardFrom: string;
@@ -20,6 +21,7 @@ export const OnboardingForm = () => {
   const { user, setOnboardingComplete, isOfflineMode } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState<OnboardingData>({
+    name: '',
     username: '',
     marmailEmail: '',
     heardFrom: '',
@@ -31,32 +33,50 @@ export const OnboardingForm = () => {
   const [usernameError, setUsernameError] = useState('');
   const [tableExists, setTableExists] = useState(true);
 
-  // Check if table exists on component mount
+  // Check if table exists and user onboarding status on component mount
   useEffect(() => {
     if (isOfflineMode) {
       setTableExists(false);
       return;
     }
 
-    const checkTableExists = async () => {
+    const checkTableAndOnboarding = async () => {
       try {
-        const { error } = await supabase
+        // First check if table exists
+        const { error: tableError } = await supabase
           .from('user_onboarding')
           .select('id')
           .limit(1);
         
-        if (error && error.code === '42P01') { // Table doesn't exist
+        if (tableError && tableError.code === '42P01') { // Table doesn't exist
           console.log('user_onboarding table does not exist yet');
           setTableExists(false);
+          return;
+        }
+
+        // If user exists and table exists, check if they've already completed onboarding
+        if (user) {
+          const { data: onboardingData, error: onboardingError } = await supabase
+            .from('user_onboarding')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+          if (onboardingData && onboardingData.is_complete) {
+            console.log('User has already completed onboarding, redirecting...');
+            setIsCompleted(true);
+            setTimeout(() => navigate('/'), 1000);
+            return;
+          }
         }
       } catch (error) {
-        console.log('Error checking table existence:', error);
+        console.log('Error checking table existence or onboarding status:', error);
         setTableExists(false);
       }
     };
 
-    checkTableExists();
-  }, [isOfflineMode]);
+    checkTableAndOnboarding();
+  }, [isOfflineMode, user, navigate]);
 
   // Debounced username checking
   useEffect(() => {
@@ -130,6 +150,12 @@ export const OnboardingForm = () => {
       return;
     }
 
+    if (!formData.name.trim()) {
+      setError('Please enter your name');
+      setIsSubmitting(false);
+      return;
+    }
+
     if (!validateUsername(formData.username)) {
       setError('Please enter a valid username (3-20 characters, letters, numbers, hyphens, and underscores only)');
       setIsSubmitting(false);
@@ -162,10 +188,11 @@ export const OnboardingForm = () => {
       // Update user metadata in auth.users table for MarChat integration
       const { error: updateError } = await supabase.auth.updateUser({
         data: {
+          name: formData.name,
           username: formData.username,
           marmail_email: formData.marmailEmail,
-          display_name: formData.username,
-          full_name: formData.username,
+          display_name: formData.name,
+          full_name: formData.name,
           onboarding_complete: true
         }
       });
@@ -180,6 +207,7 @@ export const OnboardingForm = () => {
         .from('user_onboarding')
         .insert({
           user_id: user!.id,
+          name: formData.name,
           username: formData.username,
           marmail_email: formData.marmailEmail,
           heard_from: formData.heardFrom,
@@ -343,6 +371,27 @@ export const OnboardingForm = () => {
             
             <CardContent className="space-y-6 animate-fadeIn animation-delay-300">
               <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Name Field */}
+                <div className="space-y-2 transform transition-all duration-300 hover:scale-[1.02]">
+                  <Label htmlFor="name" className="text-foreground font-medium flex items-center gap-2">
+                    <User className="w-4 h-4 text-purple-400" />
+                    Your Full Name
+                  </Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    required
+                    disabled={isCompleted}
+                    className="py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This will be displayed in your profile and messages
+                  </p>
+                </div>
+
                 {/* Username Field */}
                 <div className="space-y-2 transform transition-all duration-300 hover:scale-[1.02]">
                   <Label htmlFor="username" className="text-foreground font-medium flex items-center gap-2">
@@ -461,7 +510,7 @@ export const OnboardingForm = () => {
                       <span className="text-xl font-semibold text-green-500">Setup Complete!</span>
                     </div>
                     <p className="text-muted-foreground mb-2">
-                      Welcome to MarDev, {formData.username}!
+                      Welcome to MarDev, {formData.name}!
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Your MarMail: <span className="text-purple-400 font-medium">{formData.marmailEmail}</span>

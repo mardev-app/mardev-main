@@ -115,6 +115,7 @@ export type Database = {
         Row: {
           id: string
           user_id: string
+          name: string | null
           username: string
           marmail_email: string
           heard_from: string
@@ -125,6 +126,7 @@ export type Database = {
         Insert: {
           id?: string
           user_id: string
+          name?: string | null
           username: string
           marmail_email: string
           heard_from: string
@@ -135,6 +137,7 @@ export type Database = {
         Update: {
           id?: string
           user_id?: string
+          name?: string | null
           username?: string
           marmail_email?: string
           heard_from?: string

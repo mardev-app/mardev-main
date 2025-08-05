@@ -118,7 +118,7 @@ export const AuthStatus = () => {
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             <User className="w-4 h-4 text-green-400" />
             <span className="text-sm text-green-400 font-medium">
-              {user.email || 'Welcome back!'}
+              {user.user_metadata?.name || user.user_metadata?.display_name || user.email || 'Welcome back!'}
             </span>
           </div>
           {!isOnboardingComplete && (

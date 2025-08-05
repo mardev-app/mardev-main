@@ -135,6 +135,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (isOfflineMode) return false;
     
     try {
+      // First check user metadata for quick access
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.onboarding_complete) {
+        return true;
+      }
+
+      // Then check the database
       const { data, error } = await supabase
         .from('user_onboarding')
         .select('is_complete')
