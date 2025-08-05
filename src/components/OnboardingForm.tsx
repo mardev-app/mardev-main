@@ -18,7 +18,7 @@ interface OnboardingData {
 }
 
 export const OnboardingForm = () => {
-  const { user, setOnboardingComplete, isOfflineMode } = useAuth();
+  const { user, setOnboardingComplete, refreshOnboardingStatus, refreshSession, isOfflineMode } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState<OnboardingData>({
     name: '',
@@ -221,6 +221,12 @@ export const OnboardingForm = () => {
 
       // Mark as completed locally first
       setIsCompleted(true);
+      
+      // Refresh the session to get updated user metadata
+      await refreshSession();
+      
+      // Refresh onboarding status from the database
+      await refreshOnboardingStatus();
       
       // Mark onboarding as complete in context
       setOnboardingComplete(true);

@@ -9,6 +9,7 @@ interface AuthContextType {
   signIn: (provider: 'google' | 'github' | 'discord') => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  refreshOnboardingStatus: () => Promise<void>;
   isOnboardingComplete: boolean;
   setOnboardingComplete: (complete: boolean) => void;
   isOfflineMode: boolean;
@@ -120,6 +121,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      console.log('Session user metadata:', session?.user?.user_metadata);
+      
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        try {
+          const onboardingComplete = await checkOnboardingStatus(session.user.id);
+          console.log('Setting onboarding complete to:', onboardingComplete);
+          setIsOnboardingComplete(onboardingComplete);
+        } catch (error) {
+          console.error('Error checking onboarding:', error);
+          setIsOnboardingComplete(false);
+        }
+      } else {
+        setIsOnboardingComplete(false);
+      }
+    });
+
     // Add timeout to prevent infinite loading, but make it longer
     const timeoutId = setTimeout(() => {
       console.log('Auth initialization timeout, but continuing in online mode');
@@ -128,16 +151,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     initializeAuth();
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const checkOnboardingStatus = async (userId: string) => {
     if (isOfflineMode) return false;
     
     try {
+      console.log('Checking onboarding status for user:', userId);
+      
       // First check user metadata for quick access
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('User metadata onboarding_complete:', user?.user_metadata?.onboarding_complete);
+      
       if (user?.user_metadata?.onboarding_complete) {
+        console.log('Onboarding complete found in user metadata');
         return true;
       }
 
@@ -148,12 +179,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .eq('user_id', userId)
         .single();
 
+      console.log('Database onboarding check result:', { data, error });
+
       if (error && error.code !== 'PGRST116') {
         console.error('Error checking onboarding status:', error);
         return false;
       }
 
-      return data?.is_complete || false;
+      const isComplete = data?.is_complete || false;
+      console.log('Final onboarding status:', isComplete);
+      return isComplete;
     } catch (error) {
       console.error('Error checking onboarding status:', error);
       return false;
@@ -229,6 +264,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const refreshOnboardingStatus = async () => {
+    if (isOfflineMode || !user) return;
+
+    try {
+      console.log('Refreshing onboarding status...');
+      const onboardingComplete = await checkOnboardingStatus(user.id);
+      setIsOnboardingComplete(onboardingComplete);
+    } catch (error) {
+      console.error('Error refreshing onboarding status:', error);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     session,
@@ -236,6 +283,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signIn,
     signOut,
     refreshSession,
+    refreshOnboardingStatus,
     isOnboardingComplete,
     setOnboardingComplete: setIsOnboardingComplete,
     isOfflineMode,
