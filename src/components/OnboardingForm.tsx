@@ -25,6 +25,7 @@ export const OnboardingForm = () => {
     heardFrom: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [error, setError] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [usernameError, setUsernameError] = useState('');
@@ -143,17 +144,35 @@ export const OnboardingForm = () => {
       // If offline mode, just mark onboarding as complete
       if (isOfflineMode) {
         console.log('Offline mode: skipping database save');
+        setIsCompleted(true);
         setOnboardingComplete(true);
-        navigate('/');
+        setTimeout(() => navigate('/'), 2000);
         return;
       }
 
       // If table doesn't exist, just mark onboarding as complete
       if (!tableExists) {
         console.log('Table does not exist, skipping database save');
+        setIsCompleted(true);
         setOnboardingComplete(true);
-        navigate('/');
+        setTimeout(() => navigate('/'), 2000);
         return;
+      }
+
+      // Update user metadata in auth.users table for MarChat integration
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          username: formData.username,
+          marmail_email: formData.marmailEmail,
+          display_name: formData.username,
+          full_name: formData.username,
+          onboarding_complete: true
+        }
+      });
+
+      if (updateError) {
+        console.error('Error updating user metadata:', updateError);
+        // Don't throw here, continue with onboarding table insert
       }
 
       // Save onboarding data to database
@@ -172,11 +191,16 @@ export const OnboardingForm = () => {
         throw new Error(insertError.message);
       }
 
+      // Mark as completed locally first
+      setIsCompleted(true);
+      
       // Mark onboarding as complete in context
       setOnboardingComplete(true);
       
-      // Redirect to the main app
-      navigate('/');
+      // Wait a moment to show the completion state, then redirect
+      setTimeout(() => {
+        navigate('/');
+      }, 2000);
     } catch (error: any) {
       console.error('Onboarding error:', error);
       setError(error.message || 'Failed to save onboarding data');
@@ -335,7 +359,8 @@ export const OnboardingForm = () => {
                       required
                       minLength={3}
                       maxLength={20}
-                      className={`pl-3 pr-10 py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] ${
+                      disabled={isCompleted}
+                      className={`pl-3 pr-10 py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed ${
                         usernameStatus === 'taken' ? 'border-red-500 animate-shake' : 
                         usernameStatus === 'available' ? 'border-green-500' : ''
                       }`}
@@ -401,8 +426,9 @@ export const OnboardingForm = () => {
                     value={formData.heardFrom}
                     onValueChange={(value) => handleInputChange('heardFrom', value)}
                     required
+                    disabled={isCompleted}
                   >
-                    <SelectTrigger className="py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02]">
+                    <SelectTrigger className="py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed">
                       <SelectValue placeholder="Select an option" />
                     </SelectTrigger>
                     <SelectContent className="bg-background border-border animate-slideInFromTop">
@@ -427,24 +453,42 @@ export const OnboardingForm = () => {
                   </Alert>
                 )}
 
-                {/* Submit Button */}
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] transform"
-                  disabled={isSubmitting || usernameStatus === 'taken' || usernameStatus === 'checking'}
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-                      Setting up your account...
+                {/* Success Message or Submit Button */}
+                {isCompleted ? (
+                  <div className="text-center py-4">
+                    <div className="flex items-center justify-center mb-4">
+                      <CheckCircle className="w-8 h-8 text-green-500 mr-2" />
+                      <span className="text-xl font-semibold text-green-500">Setup Complete!</span>
                     </div>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
-                      Complete Setup
-                    </>
-                  )}
-                </Button>
+                    <p className="text-muted-foreground mb-2">
+                      Welcome to MarDev, {formData.username}!
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Your MarMail: <span className="text-purple-400 font-medium">{formData.marmailEmail}</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Redirecting you to the main app...
+                    </p>
+                  </div>
+                ) : (
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] transform"
+                    disabled={isSubmitting || usernameStatus === 'taken' || usernameStatus === 'checking'}
+                  >
+                    {isSubmitting ? (
+                      <div className="flex items-center">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
+                        Setting up your account...
+                      </div>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
+                        Complete Setup
+                      </>
+                    )}
+                  </Button>
+                )}
               </form>
             </CardContent>
           </Card>
