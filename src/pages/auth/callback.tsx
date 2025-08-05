@@ -10,6 +10,11 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        // Debug logging
+        console.log('Full URL:', window.location.href);
+        console.log('Hash:', window.location.hash);
+        console.log('Search:', window.location.search);
+        
         // Get the URL hash and search params
         const hash = window.location.hash;
         const searchParams = new URLSearchParams(window.location.search);
@@ -26,13 +31,41 @@ export default function AuthCallback() {
           return;
         }
 
-        // Handle the OAuth callback - for implicit flow, tokens are in the hash
+        // Handle the OAuth callback - let Supabase handle the session automatically
+        // Supabase should automatically detect and set the session from the URL
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        console.log('Session data:', sessionData);
+        console.log('Session error:', sessionError);
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setMessage('Authentication failed: Unable to get session');
+          setStatus('error');
+          setTimeout(() => navigate('/'), 3000);
+          return;
+        }
+
+        if (sessionData.session) {
+          setMessage('Authentication successful! Redirecting to setup...');
+          setStatus('success');
+          // Clean up the URL by removing the hash
+          window.history.replaceState(null, '', window.location.pathname);
+          // Redirect to onboarding
+          setTimeout(() => navigate('/onboarding'), 1500);
+          return;
+        }
+
+        // If no session yet, try manual hash parsing as fallback
         if (hash && hash.includes('access_token')) {
+          console.log('Trying manual hash parsing...');
           // Parse the hash parameters
           const hashParams = new URLSearchParams(hash.substring(1)); // Remove the # symbol
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
-          const expiresAt = hashParams.get('expires_at');
+          
+          console.log('Access token found:', !!accessToken);
+          console.log('Refresh token found:', !!refreshToken);
           
           if (accessToken) {
             // Set the session using the tokens from the hash
@@ -40,6 +73,8 @@ export default function AuthCallback() {
               access_token: accessToken,
               refresh_token: refreshToken || '',
             });
+            
+            console.log('Set session result:', { data, error });
             
             if (error) {
               console.error('Set session error:', error);
@@ -60,42 +95,24 @@ export default function AuthCallback() {
             }
           }
         }
-
-        // Check if we already have a session (fallback)
-        const { data, error } = await supabase.auth.getSession();
+        // Try the code exchange method as a final fallback for PKCE flow
+        console.log('Trying code exchange as fallback...');
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
+          window.location.href
+        );
         
-        if (error) {
-          console.error('Session error:', error);
-          setMessage('Authentication failed: Unable to get session');
+        if (exchangeError) {
+          console.error('Code exchange error:', exchangeError);
+          setMessage('Authentication failed: Unable to complete login');
           setStatus('error');
           setTimeout(() => navigate('/'), 3000);
           return;
         }
-
-        if (data.session) {
-          setMessage('Authentication successful! Redirecting to setup...');
-          setStatus('success');
-          // Redirect to onboarding instead of home page
-          setTimeout(() => navigate('/onboarding'), 1500);
-        } else {
-          // Try the code exchange method as a fallback for PKCE flow
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
-            window.location.href
-          );
-          
-          if (exchangeError) {
-            console.error('Code exchange error:', exchangeError);
-            setMessage('Authentication failed: Unable to complete login');
-            setStatus('error');
-            setTimeout(() => navigate('/'), 3000);
-            return;
-          }
-          
-          setMessage('Authentication successful! Redirecting to setup...');
-          setStatus('success');
-          // Redirect to onboarding instead of home page
-          setTimeout(() => navigate('/onboarding'), 1500);
-        }
+        
+        setMessage('Authentication successful! Redirecting to setup...');
+        setStatus('success');
+        // Redirect to onboarding
+        setTimeout(() => navigate('/onboarding'), 1500);
       } catch (err) {
         console.error('Auth callback error:', err);
         setMessage('Authentication failed: Unexpected error');
