@@ -10,6 +10,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
   refreshOnboardingStatus: () => Promise<void>;
+  getUserDisplayName: () => string | null;
   isOnboardingComplete: boolean;
   setOnboardingComplete: (complete: boolean) => void;
   isOfflineMode: boolean;
@@ -35,6 +36,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+
+  // Helper function to get cookie value
+  const getCookie = (name: string): string | null => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return decodeURIComponent(parts.pop()?.split(';').shift() || '');
+    return null;
+  };
+
+  // Helper function to get user's name from various sources
+  const getUserDisplayName = (): string | null => {
+    // First check cookies (most recent/reliable)
+    const cookieName = getCookie('mardev_user_name');
+    if (cookieName) return cookieName;
+    
+    // Then check localStorage
+    const localName = localStorage.getItem('mardev_user_name');
+    if (localName) return localName;
+    
+    // Then check user metadata
+    if (user?.user_metadata?.name) return user.user_metadata.name;
+    if (user?.user_metadata?.display_name) return user.user_metadata.display_name;
+    
+    return null;
+  };
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -126,7 +152,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('Checking onboarding status for user:', userId);
       
-      // First check user metadata for quick access
+      // First check cookies for quick access
+      const cookieComplete = getCookie('mardev_onboarding_complete');
+      console.log('Cookie onboarding_complete:', cookieComplete);
+      
+      if (cookieComplete === 'true') {
+        console.log('Onboarding complete found in cookies');
+        return true;
+      }
+      
+      // Also check localStorage
+      const localComplete = localStorage.getItem('mardev_onboarding_complete');
+      console.log('localStorage onboarding_complete:', localComplete);
+      
+      if (localComplete === 'true') {
+        console.log('Onboarding complete found in localStorage');
+        return true;
+      }
+      
+      // Then check user metadata for quick access
       const { data: { user } } = await supabase.auth.getUser();
       console.log('User metadata onboarding_complete:', user?.user_metadata?.onboarding_complete);
       
@@ -135,7 +179,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
 
-      // Then check the database
+      // Finally check the database
       const { data, error } = await supabase
         .from('user_onboarding')
         .select('is_complete')
@@ -151,6 +195,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const isComplete = data?.is_complete || false;
       console.log('Final onboarding status:', isComplete);
+      
+      // If database says complete but cookies don't, update cookies
+      if (isComplete && cookieComplete !== 'true') {
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        const expires = `expires=${expiryDate.toUTCString()}`;
+        document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+        localStorage.setItem('mardev_onboarding_complete', 'true');
+      }
+      
       return isComplete;
     } catch (error) {
       console.error('Error checking onboarding status:', error);
@@ -205,6 +259,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     console.log('SignOut function called, isOfflineMode:', isOfflineMode);
+    
+    // Clear onboarding data from cookies and localStorage
+    document.cookie = 'mardev_onboarding_complete=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'mardev_user_name=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'mardev_username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'mardev_marmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    
+    localStorage.removeItem('mardev_onboarding_complete');
+    localStorage.removeItem('mardev_user_name');
+    localStorage.removeItem('mardev_username');
+    localStorage.removeItem('mardev_marmail');
     
     if (isOfflineMode) {
       // Clear local state in offline mode
@@ -278,6 +343,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signOut,
     refreshSession,
     refreshOnboardingStatus,
+    getUserDisplayName,
     isOnboardingComplete,
     setOnboardingComplete: setIsOnboardingComplete,
     isOfflineMode,

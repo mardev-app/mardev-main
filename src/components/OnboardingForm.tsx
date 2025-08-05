@@ -222,6 +222,22 @@ export const OnboardingForm = () => {
       // Mark as completed locally first
       setIsCompleted(true);
       
+      // Save onboarding completion in localStorage and cookies for persistence
+      localStorage.setItem('mardev_onboarding_complete', 'true');
+      localStorage.setItem('mardev_user_name', formData.name);
+      localStorage.setItem('mardev_username', formData.username);
+      localStorage.setItem('mardev_marmail', formData.marmailEmail);
+      
+      // Also set cookies for cross-tab persistence (expires in 1 year)
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+      const expires = `expires=${expiryDate.toUTCString()}`;
+      
+      document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
+      
       // Refresh the session to get updated user metadata
       await refreshSession();
       

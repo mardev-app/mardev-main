@@ -11,7 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 export const AuthStatus = () => {
-  const { user, loading, signIn, signOut, isOnboardingComplete, isOfflineMode } = useAuth();
+  const { user, loading, signIn, signOut, isOnboardingComplete, getUserDisplayName, isOfflineMode } = useAuth();
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authTimeout, setAuthTimeout] = useState(false);
   const navigate = useNavigate();
@@ -167,8 +167,8 @@ export const AuthStatus = () => {
             <User className="w-4 h-4 text-green-400" />
             <span className="text-sm text-green-400 font-medium">
               {isOnboardingComplete ? 
-                (user.user_metadata?.name || user.user_metadata?.display_name || user.email || 'Welcome back!') :
-                (user.email || 'Welcome back!')
+                (getUserDisplayName() || 'Welcome back!') :
+                'Welcome!'
               }
             </span>
           </div>
