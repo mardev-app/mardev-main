@@ -23,7 +23,7 @@ export const AuthStatus = () => {
         console.log('Auth loading timeout, showing fallback');
         setAuthTimeout(true);
       }
-    }, 15000); // 15 second timeout
+    }, 8000); // Reduced from 15 seconds to 8 seconds
 
     return () => clearTimeout(timeoutId);
   }, [loading]);
@@ -46,13 +46,17 @@ export const AuthStatus = () => {
 
   const handleSignOut = async () => {
     try {
+      console.log('Sign out button clicked');
       await signOut();
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('Sign out error in component:', error);
+      // Force reload on error as fallback
+      window.location.reload();
     }
   };
 
   const handleOnboarding = () => {
+    console.log('Onboarding button clicked');
     navigate('/onboarding');
   };
 
@@ -97,9 +101,31 @@ export const AuthStatus = () => {
     );
   }
 
-  if (loading) {
+  // If we have a timeout but still loading, show a fallback with refresh option
+  if (loading && authTimeout) {
     return (
-      <div className="fixed top-6 right-6 z-50">
+      <div className="fixed top-6 right-6 z-[9999] pointer-events-auto">
+        <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-xl border border-orange-500/30 rounded-xl px-4 py-2 shadow-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-400 rounded-full animate-pulse"></div>
+            <span className="text-sm text-orange-400 font-medium">Auth timeout</span>
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={() => window.location.reload()}
+              className="h-6 px-2 text-xs text-orange-400 hover:bg-orange-500/20"
+            >
+              Refresh
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && !authTimeout) {
+    return (
+      <div className="fixed top-6 right-6 z-[9999] pointer-events-auto">
         <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-xl border border-blue-500/30 rounded-xl px-4 py-2 shadow-lg">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
@@ -111,7 +137,7 @@ export const AuthStatus = () => {
   }
 
   return (
-    <div className="fixed top-6 right-6 z-50 flex items-center gap-3">
+    <div className="fixed top-6 right-6 z-[9999] flex items-center gap-3 pointer-events-auto">
       {user ? (
         <>
           <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-xl border border-green-500/30 rounded-xl px-4 py-2 flex items-center gap-2 shadow-lg">
@@ -129,7 +155,8 @@ export const AuthStatus = () => {
               variant="outline" 
               size="sm" 
               onClick={handleOnboarding}
-              className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300 backdrop-blur-xl"
+              className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300 backdrop-blur-xl pointer-events-auto cursor-pointer"
+              style={{ zIndex: 9999 }}
             >
               <Sparkles className="w-4 h-4 mr-2" />
               Complete Setup
@@ -139,7 +166,8 @@ export const AuthStatus = () => {
             variant="outline" 
             size="sm" 
             onClick={handleSignOut}
-            className="border-red-500/50 text-red-400 hover:bg-red-500/20 hover:text-red-300 backdrop-blur-xl"
+            className="border-red-500/50 text-red-400 hover:bg-red-500/20 hover:text-red-300 backdrop-blur-xl pointer-events-auto cursor-pointer"
+            style={{ zIndex: 9999 }}
           >
             <LogOut className="w-4 h-4" />
             Logout

@@ -36,20 +36,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
 
-  // Test Supabase connection with better error handling
+  // Test Supabase connection with better error handling and faster timeout
   const testSupabaseConnection = async (): Promise<boolean> => {
     try {
       console.log('Testing Supabase connection...');
       
+      // Create a promise that will timeout after 3 seconds
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 3000)
+      );
+      
       // Try a simple query that should work if Supabase is available
-      const { data, error } = await supabase
+      const queryPromise = supabase
         .from('chat_rooms')
         .select('id')
         .limit(1);
       
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+      
       if (error) {
         // Only consider it a connection failure for specific error types
-        if (error.code === 'PGRST301' || error.code === 'PGRST302' || error.message?.includes('fetch')) {
+        if (error.code === 'PGRST301' || error.code === 'PGRST302' || error.message?.includes('fetch') || error.message?.includes('timeout')) {
           console.error('Supabase connection test failed:', error);
           return false;
         }
@@ -71,15 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         console.log('Initializing auth system...');
         
-        // First try to get the session directly
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Error getting session:', sessionError);
-          // Don't go offline immediately, try connection test
-        }
-
-        // Test Supabase connection
+        // Test Supabase connection first with a shorter timeout
         const isConnected = await testSupabaseConnection();
         
         if (!isConnected) {
@@ -92,6 +91,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // If connected, proceed with normal auth
         console.log('Supabase connected, proceeding with normal auth');
         setIsOfflineMode(false);
+        
+        // Get the session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('Error getting session:', sessionError);
+        }
         
         console.log('Session result:', session);
         setSession(session);
@@ -110,13 +116,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLoading(false);
       } catch (error) {
         console.error('Error in initializeAuth:', error);
-        // Only go offline for network/connection errors
-        if (error instanceof TypeError || error instanceof Error) {
-          const errorMessage = error.message.toLowerCase();
-          if (errorMessage.includes('fetch') || errorMessage.includes('network') || errorMessage.includes('connection')) {
-            setIsOfflineMode(true);
-          }
-        }
         setLoading(false);
       }
     };
@@ -143,11 +142,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     });
 
-    // Add timeout to prevent infinite loading, but make it longer
+    // Shorter timeout to prevent long loading states
     const timeoutId = setTimeout(() => {
-      console.log('Auth initialization timeout, but continuing in online mode');
+      console.log('Auth initialization timeout, continuing...');
       setLoading(false);
-    }, 10000); // 10 second timeout, but don't force offline mode
+    }, 5000); // Reduced from 10 seconds to 5 seconds
 
     initializeAuth();
 
@@ -221,6 +220,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signOut = async () => {
+    console.log('SignOut function called, isOfflineMode:', isOfflineMode);
+    
     if (isOfflineMode) {
       // Clear local state in offline mode
       setUser(null);
@@ -233,16 +234,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       console.log('Signing out...');
+      
+      // Clear local state first for immediate UI feedback
+      setUser(null);
+      setSession(null);
+      setIsOnboardingComplete(false);
+      
       const { error } = await supabase.auth.signOut();
       if (error) {
         console.error('Sign out error:', error);
-        throw error;
+        // Still reload even on error to ensure clean state
       }
+      
       // Reload the page after successful sign out
+      console.log('Sign out successful, reloading page');
       window.location.reload();
     } catch (error) {
       console.error('Sign out error:', error);
-      throw error;
+      // Force reload even on error
+      window.location.reload();
     }
   };
 
