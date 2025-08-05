@@ -36,67 +36,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
 
-  // Test Supabase connection with better error handling and faster timeout
-  const testSupabaseConnection = async (): Promise<boolean> => {
-    try {
-      console.log('Testing Supabase connection...');
-      
-      // Create a promise that will timeout after 3 seconds
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 3000)
-      );
-      
-      // Try a simple query that should work if Supabase is available
-      const queryPromise = supabase
-        .from('chat_rooms')
-        .select('id')
-        .limit(1);
-      
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-      
-      if (error) {
-        // Only consider it a connection failure for specific error types
-        if (error.code === 'PGRST301' || error.code === 'PGRST302' || error.message?.includes('fetch') || error.message?.includes('timeout')) {
-          console.error('Supabase connection test failed:', error);
-          return false;
-        }
-        // For other errors (like table not found), consider it connected
-        console.log('Supabase connected but table query failed:', error);
-        return true;
-      }
-      
-      console.log('Supabase connection test successful');
-      return true;
-    } catch (error) {
-      console.error('Supabase connection test error:', error);
-      return false;
-    }
-  };
-
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         console.log('Initializing auth system...');
+        setIsOfflineMode(false); // Start in online mode
         
-        // Test Supabase connection first with a shorter timeout
-        const isConnected = await testSupabaseConnection();
-        
-        if (!isConnected) {
-          console.log('Supabase not available, switching to offline mode');
-          setIsOfflineMode(true);
-          setLoading(false);
-          return;
-        }
-
-        // If connected, proceed with normal auth
-        console.log('Supabase connected, proceeding with normal auth');
-        setIsOfflineMode(false);
-        
-        // Get the session
+        // Get the session directly - this is more reliable than connection testing
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           console.error('Error getting session:', sessionError);
+          // Only go offline for network errors, not auth errors
+          if (sessionError.message?.includes('fetch') || sessionError.message?.includes('network')) {
+            console.log('Network error detected, switching to offline mode');
+            setIsOfflineMode(true);
+            setLoading(false);
+            return;
+          }
         }
         
         console.log('Session result:', session);
@@ -114,8 +71,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         
         setLoading(false);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error in initializeAuth:', error);
+        
+        // Only go offline for network/connection errors
+        if (error.message?.includes('fetch') || error.message?.includes('network') || error.message?.includes('timeout')) {
+          console.log('Network error in auth init, switching to offline mode');
+          setIsOfflineMode(true);
+        }
+        
         setLoading(false);
       }
     };
@@ -195,8 +159,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signIn = async (provider: 'google' | 'github' | 'discord') => {
+    console.log('SignIn called with provider:', provider, 'isOfflineMode:', isOfflineMode);
+    
     if (isOfflineMode) {
-      alert('Authentication is currently unavailable. Please try again later.');
+      alert('Authentication is currently unavailable. Please check your internet connection and try again.');
       return;
     }
 
@@ -211,10 +177,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         console.error('Sign in error:', error);
+        
+        // If it's a network error, switch to offline mode
+        if (error.message?.includes('fetch') || error.message?.includes('network')) {
+          setIsOfflineMode(true);
+          alert('Network error. Please check your internet connection.');
+        }
+        
         throw error;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sign in error:', error);
+      
+      // Provide more helpful error messages
+      if (error.message?.includes('provider is not enabled')) {
+        alert('This sign-in method is not configured yet. Please contact support.');
+      } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+        alert('Network error. Please check your internet connection and try again.');
+        setIsOfflineMode(true);
+      } else {
+        alert('Authentication failed. Please try again.');
+      }
+      
       throw error;
     }
   };
