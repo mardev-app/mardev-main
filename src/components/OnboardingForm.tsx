@@ -18,7 +18,7 @@ interface OnboardingData {
 }
 
 export const OnboardingForm = () => {
-  const { user, setOnboardingComplete, refreshOnboardingStatus, refreshSession, isOfflineMode } = useAuth();
+  const { user, setOnboardingComplete, refreshOnboardingStatus, refreshSession, isOfflineMode, isOnboardingComplete } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState<OnboardingData>({
     name: '',
@@ -32,6 +32,28 @@ export const OnboardingForm = () => {
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [usernameError, setUsernameError] = useState('');
   const [tableExists, setTableExists] = useState(true);
+  const [hasRedirected, setHasRedirected] = useState(false);
+
+  // If onboarding is already complete, redirect to home
+  useEffect(() => {
+    if (isOnboardingComplete && !hasRedirected) {
+      console.log('Onboarding already complete, redirecting to home...');
+      setHasRedirected(true);
+      navigate('/');
+    }
+  }, [isOnboardingComplete, navigate, hasRedirected]);
+
+  // Don't render the form if onboarding is complete or we're redirecting
+  if (isOnboardingComplete || hasRedirected) {
+    return (
+      <div className="w-screen h-screen bg-gradient-background flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Check if table exists and user onboarding status on component mount
   useEffect(() => {
@@ -53,6 +75,8 @@ export const OnboardingForm = () => {
           setTableExists(false);
           return;
         }
+
+        setTableExists(true);
 
         // If user exists and table exists, check if they've already completed onboarding
         if (user) {
@@ -81,6 +105,13 @@ export const OnboardingForm = () => {
   // Debounced username checking
   useEffect(() => {
     const checkUsername = async () => {
+      console.log('Username check started:', {
+        username: formData.username,
+        length: formData.username.length,
+        tableExists,
+        isOfflineMode
+      });
+
       if (!formData.username || formData.username.length < 3) {
         setUsernameStatus('idle');
         setUsernameError('');
@@ -89,6 +120,7 @@ export const OnboardingForm = () => {
 
       // Always validate format first
       if (!validateUsername(formData.username)) {
+        console.log('Username format validation failed');
         setUsernameStatus('idle');
         setUsernameError('Username must be 3-20 characters and contain only letters, numbers, hyphens, and underscores');
         return;
@@ -96,6 +128,7 @@ export const OnboardingForm = () => {
 
       // If offline mode or table doesn't exist, still validate format but skip database check
       if (isOfflineMode || !tableExists) {
+        console.log('Skipping database check - offline mode or table not exists');
         setUsernameStatus('available');
         setUsernameError('');
         return;
@@ -378,6 +411,13 @@ export const OnboardingForm = () => {
   const handleInputChange = (field: keyof OnboardingData, value: string) => {
     if (field === 'username') {
       handleUsernameChange(value);
+    } else if (field === 'marmailEmail') {
+      // Handle MarMail email independently
+      const marmailEmail = value.includes('#mardev.app') ? value : `${value}#mardev.app`;
+      setFormData(prev => ({
+        ...prev,
+        marmailEmail,
+      }));
     } else {
       setFormData(prev => ({
         ...prev,
@@ -415,6 +455,8 @@ export const OnboardingForm = () => {
         return 'Username available';
       case 'taken':
         return 'Username taken';
+      case 'idle':
+        return formData.username.length >= 3 ? 'Enter a username to check availability' : '';
       default:
         return '';
     }
@@ -578,7 +620,7 @@ export const OnboardingForm = () => {
                       type="text"
                       placeholder="yourname"
                       value={formData.marmailEmail.replace('#mardev.app', '')}
-                      onChange={(e) => handleInputChange('username', e.target.value)}
+                      onChange={(e) => handleInputChange('marmailEmail', e.target.value)}
                       required
                       disabled={isCompleted}
                       className={`pl-3 pr-24 py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed ${
