@@ -64,6 +64,8 @@ export const OnboardingForm = () => {
 
     const checkTableAndOnboarding = async () => {
       try {
+        console.log('Checking if user_onboarding table exists...');
+        
         // First check if table exists
         const { error: tableError } = await supabase
           .from('user_onboarding')
@@ -76,10 +78,18 @@ export const OnboardingForm = () => {
           return;
         }
 
+        if (tableError) {
+          console.error('Error checking table existence:', tableError);
+          setTableExists(false);
+          return;
+        }
+
+        console.log('Table exists, setting tableExists to true');
         setTableExists(true);
 
         // If user exists and table exists, check if they've already completed onboarding
         if (user) {
+          console.log('Checking if user has completed onboarding...');
           const { data: onboardingData, error: onboardingError } = await supabase
             .from('user_onboarding')
             .select('*')
@@ -91,6 +101,8 @@ export const OnboardingForm = () => {
             setIsCompleted(true);
             setTimeout(() => navigate('/'), 1000);
             return;
+          } else {
+            console.log('User has not completed onboarding yet');
           }
         }
       } catch (error) {
@@ -113,13 +125,17 @@ export const OnboardingForm = () => {
       });
 
       if (!formData.username || formData.username.length < 3) {
+        console.log('Username too short or empty, setting to idle');
         setUsernameStatus('idle');
         setUsernameError('');
         return;
       }
 
       // Always validate format first
-      if (!validateUsername(formData.username)) {
+      const isValidFormat = validateUsername(formData.username);
+      console.log('Username format validation result:', isValidFormat);
+      
+      if (!isValidFormat) {
         console.log('Username format validation failed');
         setUsernameStatus('idle');
         setUsernameError('Username must be 3-20 characters and contain only letters, numbers, hyphens, and underscores');
@@ -134,23 +150,38 @@ export const OnboardingForm = () => {
         return;
       }
 
+      console.log('Setting status to checking...');
       setUsernameStatus('checking');
       setUsernameError('');
 
       try {
-        console.log('Checking username:', formData.username);
+        console.log('Starting database check for username:', formData.username);
         
-        const { data, error } = await supabase
+        // Simple timeout using Promise.race
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        );
+
+        const dbPromise = supabase
           .from('user_onboarding')
           .select('username')
           .eq('username', formData.username)
           .maybeSingle();
 
-        console.log('Username check result:', { data, error });
+        const { data, error } = await Promise.race([dbPromise, timeoutPromise]) as any;
+
+        console.log('Database check completed. Result:', { data, error });
 
         if (error) {
-          console.error('Supabase error:', error);
-          // If table doesn't exist or other error, assume available
+          if (error.message === 'Timeout') {
+            console.log('Database request timed out');
+            setUsernameStatus('available');
+            setUsernameError('');
+            return;
+          }
+          console.error('Supabase error during username check:', error);
+          // If we get an error, set table as not existing and mark username as available
+          setTableExists(false);
           setUsernameStatus('available');
           setUsernameError('');
           return;
@@ -158,24 +189,40 @@ export const OnboardingForm = () => {
 
         if (data) {
           // Username found - taken
+          console.log('Username is taken');
           setUsernameStatus('taken');
           setUsernameError('This username is already taken');
         } else {
           // Username not found - available
+          console.log('Username is available');
           setUsernameStatus('available');
           setUsernameError('');
         }
-      } catch (error) {
-        console.error('Error checking username:', error);
-        // On any error, assume available to not block the user
-        setUsernameStatus('available');
-        setUsernameError('');
+      } catch (error: any) {
+        console.error('Unexpected error during username check:', error);
+        if (error.message === 'Timeout') {
+          console.log('Request timed out, setting to available');
+          setUsernameStatus('available');
+          setUsernameError('');
+        } else {
+          // On any unexpected error, assume available to not block the user
+          setUsernameStatus('available');
+          setUsernameError('');
+        }
       }
     };
 
-    const timeoutId = setTimeout(checkUsername, 500); // 500ms debounce
-
-    return () => clearTimeout(timeoutId);
+    if (formData.username) {
+      console.log('Setting timeout for username check...');
+      const timeoutId = setTimeout(checkUsername, 500); // 500ms debounce
+      return () => {
+        console.log('Clearing username check timeout');
+        clearTimeout(timeoutId);
+      };
+    } else {
+      setUsernameStatus('idle');
+      setUsernameError('');
+    }
   }, [formData.username, tableExists, isOfflineMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
