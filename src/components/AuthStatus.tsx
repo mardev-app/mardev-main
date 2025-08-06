@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, LogIn, WifiOff, Sparkles } from 'lucide-react';
+import { LogOut, User, LogIn, WifiOff, Sparkles, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   DropdownMenu,
@@ -58,6 +58,11 @@ export const AuthStatus = () => {
   const handleOnboarding = () => {
     console.log('Onboarding button clicked');
     navigate('/onboarding');
+  };
+
+  const handleSettings = () => {
+    console.log('Settings button clicked');
+    navigate('/settings');
   };
 
   const handleOfflineMode = () => {
@@ -182,6 +187,18 @@ export const AuthStatus = () => {
             >
               <Sparkles className="w-4 h-4 mr-2" />
               Complete Setup
+            </Button>
+          )}
+          {isOnboardingComplete && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleSettings}
+              className="border-blue-500/50 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 backdrop-blur-xl pointer-events-auto cursor-pointer"
+              style={{ zIndex: 9999 }}
+            >
+              <Settings className="w-4 h-4" />
+              Settings
             </Button>
           )}
           <Button 

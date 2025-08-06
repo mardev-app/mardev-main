@@ -47,11 +47,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Helper function to get user's name from various sources
   const getUserDisplayName = (): string | null => {
-    // First check cookies (most recent/reliable)
+    // First check user-specific cookies (most recent/reliable for current user)
+    const userPrefix = user?.id ? `user_${user.id}_` : '';
+    if (userPrefix) {
+      const userCookieName = getCookie(`${userPrefix}mardev_user_name`);
+      if (userCookieName) return userCookieName;
+      
+      // Then check user-specific localStorage
+      const userLocalName = localStorage.getItem(`${userPrefix}mardev_user_name`);
+      if (userLocalName) return userLocalName;
+    }
+    
+    // Fallback to generic cookies/localStorage for backwards compatibility
     const cookieName = getCookie('mardev_user_name');
     if (cookieName) return cookieName;
     
-    // Then check localStorage
     const localName = localStorage.getItem('mardev_user_name');
     if (localName) return localName;
     
@@ -148,36 +158,72 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkOnboardingStatus = async (userId: string) => {
     if (isOfflineMode) {
-      // In offline mode, check local storage and cookies only
+      // In offline mode, check user-specific and generic local storage and cookies
+      const userPrefix = `user_${userId}_`;
+      const userCookieComplete = getCookie(`${userPrefix}mardev_onboarding_complete`);
+      const userLocalComplete = localStorage.getItem(`${userPrefix}mardev_onboarding_complete`);
       const cookieComplete = getCookie('mardev_onboarding_complete');
       const localComplete = localStorage.getItem('mardev_onboarding_complete');
-      console.log('Offline mode - Cookie:', cookieComplete, 'localStorage:', localComplete);
-      return cookieComplete === 'true' || localComplete === 'true';
+      
+      console.log('Offline mode - User-specific Cookie:', userCookieComplete, 'User-specific localStorage:', userLocalComplete);
+      console.log('Offline mode - Generic Cookie:', cookieComplete, 'Generic localStorage:', localComplete);
+      
+      // Prefer user-specific data, fallback to generic
+      return userCookieComplete === 'true' || userLocalComplete === 'true' || cookieComplete === 'true' || localComplete === 'true';
     }
     
     try {
       console.log('Checking onboarding status for user:', userId);
       
-      // First check cookies for quick access
-      const cookieComplete = getCookie('mardev_onboarding_complete');
-      console.log('Cookie onboarding_complete:', cookieComplete);
+      // First check user-specific cookies and localStorage
+      const userPrefix = `user_${userId}_`;
+      const userCookieComplete = getCookie(`${userPrefix}mardev_onboarding_complete`);
+      const userLocalComplete = localStorage.getItem(`${userPrefix}mardev_onboarding_complete`);
       
-      if (cookieComplete === 'true') {
-        console.log('Onboarding complete found in cookies');
+      console.log('User-specific cookie onboarding_complete:', userCookieComplete);
+      console.log('User-specific localStorage onboarding_complete:', userLocalComplete);
+      
+      if (userCookieComplete === 'true' || userLocalComplete === 'true') {
+        console.log('Onboarding complete found in user-specific storage');
         return true;
       }
       
-      // Also check localStorage
+      // Then check generic cookies for backwards compatibility
+      const cookieComplete = getCookie('mardev_onboarding_complete');
       const localComplete = localStorage.getItem('mardev_onboarding_complete');
-      console.log('localStorage onboarding_complete:', localComplete);
       
-      if (localComplete === 'true') {
-        console.log('Onboarding complete found in localStorage');
-        // Update cookie to match localStorage
+      console.log('Generic cookie onboarding_complete:', cookieComplete);
+      console.log('Generic localStorage onboarding_complete:', localComplete);
+      
+      if (cookieComplete === 'true' || localComplete === 'true') {
+        console.log('Onboarding complete found in generic storage, migrating to user-specific...');
+        
+        // Migrate to user-specific storage
         const expiryDate = new Date();
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         const expires = `expires=${expiryDate.toUTCString()}`;
-        document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+        
+        localStorage.setItem(`${userPrefix}mardev_onboarding_complete`, 'true');
+        document.cookie = `${userPrefix}mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+        
+        // Also migrate other data if available
+        const userName = localStorage.getItem('mardev_user_name') || getCookie('mardev_user_name');
+        const username = localStorage.getItem('mardev_username') || getCookie('mardev_username');
+        const marmail = localStorage.getItem('mardev_marmail') || getCookie('mardev_marmail');
+        
+        if (userName) {
+          localStorage.setItem(`${userPrefix}mardev_user_name`, userName);
+          document.cookie = `${userPrefix}mardev_user_name=${encodeURIComponent(userName)}; ${expires}; path=/; SameSite=Strict`;
+        }
+        if (username) {
+          localStorage.setItem(`${userPrefix}mardev_username`, username);
+          document.cookie = `${userPrefix}mardev_username=${encodeURIComponent(username)}; ${expires}; path=/; SameSite=Strict`;
+        }
+        if (marmail) {
+          localStorage.setItem(`${userPrefix}mardev_marmail`, marmail);
+          document.cookie = `${userPrefix}mardev_marmail=${encodeURIComponent(marmail)}; ${expires}; path=/; SameSite=Strict`;
+        }
+        
         return true;
       }
       
@@ -188,10 +234,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (user?.user_metadata?.onboarding_complete) {
         console.log('Onboarding complete found in user metadata');
         // Update local storage and cookies to match metadata
+        localStorage.setItem(`${userPrefix}mardev_onboarding_complete`, 'true');
         localStorage.setItem('mardev_onboarding_complete', 'true');
+        
         const expiryDate = new Date();
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         const expires = `expires=${expiryDate.toUTCString()}`;
+        
+        document.cookie = `${userPrefix}mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
         document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
         return true;
       }
@@ -215,10 +265,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       // If database says complete, update cookies and localStorage
       if (isComplete) {
+        localStorage.setItem(`${userPrefix}mardev_onboarding_complete`, 'true');
         localStorage.setItem('mardev_onboarding_complete', 'true');
+        
         const expiryDate = new Date();
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         const expires = `expires=${expiryDate.toUTCString()}`;
+        
+        document.cookie = `${userPrefix}mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
         document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
       }
       
@@ -226,10 +280,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Error checking onboarding status:', error);
       // As fallback, check local storage and cookies even on error
+      const userPrefix = `user_${userId}_`;
+      const userCookieComplete = getCookie(`${userPrefix}mardev_onboarding_complete`);
+      const userLocalComplete = localStorage.getItem(`${userPrefix}mardev_onboarding_complete`);
       const cookieComplete = getCookie('mardev_onboarding_complete');
       const localComplete = localStorage.getItem('mardev_onboarding_complete');
-      console.log('Error fallback - Cookie:', cookieComplete, 'localStorage:', localComplete);
-      return cookieComplete === 'true' || localComplete === 'true';
+      
+      console.log('Error fallback - User-specific Cookie:', userCookieComplete, 'User-specific localStorage:', userLocalComplete);
+      console.log('Error fallback - Generic Cookie:', cookieComplete, 'Generic localStorage:', localComplete);
+      
+      return userCookieComplete === 'true' || userLocalComplete === 'true' || cookieComplete === 'true' || localComplete === 'true';
     }
   };
 

@@ -237,7 +237,14 @@ export const OnboardingForm = () => {
     const hardTimeout = setTimeout(() => {
       console.log('Hard timeout triggered, completing locally...');
       
-      // Save locally first
+      // Save locally with user-specific keys
+      const userPrefix = user?.id ? `user_${user.id}_` : 'temp_';
+      localStorage.setItem(`${userPrefix}mardev_onboarding_complete`, 'true');
+      localStorage.setItem(`${userPrefix}mardev_user_name`, formData.name);
+      localStorage.setItem(`${userPrefix}mardev_username`, formData.username);
+      localStorage.setItem(`${userPrefix}mardev_marmail`, formData.marmailEmail);
+      
+      // Also save with generic keys for backwards compatibility
       localStorage.setItem('mardev_onboarding_complete', 'true');
       localStorage.setItem('mardev_user_name', formData.name);
       localStorage.setItem('mardev_username', formData.username);
@@ -247,6 +254,13 @@ export const OnboardingForm = () => {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
       const expires = `expires=${expiryDate.toUTCString()}`;
       
+      // User-specific cookies
+      document.cookie = `${userPrefix}mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `${userPrefix}mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `${userPrefix}mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `${userPrefix}mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
+      
+      // Generic cookies for backwards compatibility
       document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
       document.cookie = `mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
       document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
@@ -305,7 +319,14 @@ export const OnboardingForm = () => {
         console.log('Offline mode or no table/user, completing locally...');
         clearTimeout(hardTimeout);
         
-        // Save locally first
+        // Save locally with user-specific keys
+        const userPrefix = user?.id ? `user_${user.id}_` : 'temp_';
+        localStorage.setItem(`${userPrefix}mardev_onboarding_complete`, 'true');
+        localStorage.setItem(`${userPrefix}mardev_user_name`, formData.name);
+        localStorage.setItem(`${userPrefix}mardev_username`, formData.username);
+        localStorage.setItem(`${userPrefix}mardev_marmail`, formData.marmailEmail);
+        
+        // Also save with generic keys for backwards compatibility
         localStorage.setItem('mardev_onboarding_complete', 'true');
         localStorage.setItem('mardev_user_name', formData.name);
         localStorage.setItem('mardev_username', formData.username);
@@ -315,6 +336,13 @@ export const OnboardingForm = () => {
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         const expires = `expires=${expiryDate.toUTCString()}`;
         
+        // User-specific cookies
+        document.cookie = `${userPrefix}mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+        document.cookie = `${userPrefix}mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
+        document.cookie = `${userPrefix}mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
+        document.cookie = `${userPrefix}mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
+        
+        // Generic cookies for backwards compatibility
         document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
         document.cookie = `mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
         document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
@@ -366,7 +394,14 @@ export const OnboardingForm = () => {
       // Always complete locally regardless of database success
       clearTimeout(hardTimeout);
       
-      // Save locally first
+      // Save locally with user-specific keys
+      const userPrefix = user?.id ? `user_${user.id}_` : 'temp_';
+      localStorage.setItem(`${userPrefix}mardev_onboarding_complete`, 'true');
+      localStorage.setItem(`${userPrefix}mardev_user_name`, formData.name);
+      localStorage.setItem(`${userPrefix}mardev_username`, formData.username);
+      localStorage.setItem(`${userPrefix}mardev_marmail`, formData.marmailEmail);
+      
+      // Also save with generic keys for backwards compatibility
       localStorage.setItem('mardev_onboarding_complete', 'true');
       localStorage.setItem('mardev_user_name', formData.name);
       localStorage.setItem('mardev_username', formData.username);
@@ -376,6 +411,13 @@ export const OnboardingForm = () => {
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
       const expires = `expires=${expiryDate.toUTCString()}`;
       
+      // User-specific cookies
+      document.cookie = `${userPrefix}mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `${userPrefix}mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `${userPrefix}mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `${userPrefix}mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
+      
+      // Generic cookies for backwards compatibility
       document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
       document.cookie = `mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
       document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;

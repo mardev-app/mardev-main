@@ -7,6 +7,7 @@ import { ProjectsSection } from './components/ProjectsSection';
 import { Footer } from './components/Footer';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { OnboardingForm } from './components/OnboardingForm';
+import { Settings } from './components/Settings';
 import AuthCallback from './pages/auth/callback';
 import './App.css';
 
@@ -31,6 +32,16 @@ function App() {
               
               <Route path="/onboarding" element={<OnboardingForm />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <div className="w-screen h-screen bg-gradient-background">
+                    <div className="container mx-auto py-8">
+                      <Settings />
+                    </div>
+                  </div>
+                </ProtectedRoute>
+              } />
               
               <Route path="/chat" element={
                 <ProtectedRoute>
