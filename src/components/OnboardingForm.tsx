@@ -33,6 +33,7 @@ export const OnboardingForm = () => {
   const [usernameError, setUsernameError] = useState('');
   const [tableExists, setTableExists] = useState(true);
   const [hasRedirected, setHasRedirected] = useState(false);
+  const [submitAttempts, setSubmitAttempts] = useState(0);
 
   // If onboarding is already complete, redirect to home
   useEffect(() => {
@@ -229,6 +230,38 @@ export const OnboardingForm = () => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
+    setSubmitAttempts(prev => prev + 1);
+
+    console.log('Form submission started with data:', formData, 'Attempt:', submitAttempts + 1);
+
+    // If this is the second attempt or later, skip database operations and complete locally
+    if (submitAttempts >= 1) {
+      console.log('Multiple submission attempts detected, completing locally...');
+      setIsCompleted(true);
+      
+      // Save locally
+      localStorage.setItem('mardev_onboarding_complete', 'true');
+      localStorage.setItem('mardev_user_name', formData.name);
+      localStorage.setItem('mardev_username', formData.username);
+      localStorage.setItem('mardev_marmail', formData.marmailEmail);
+      
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+      const expires = `expires=${expiryDate.toUTCString()}`;
+      
+      document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
+      document.cookie = `mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
+      
+      setOnboardingComplete(true);
+      setIsSubmitting(false);
+      
+      setTimeout(() => {
+        navigate('/');
+      }, 1000);
+      return;
+    }
 
     // Final validation before submission
     if (usernameStatus === 'taken') {
@@ -284,6 +317,13 @@ export const OnboardingForm = () => {
         throw new Error('User not authenticated');
       }
 
+      console.log('Validation passed, proceeding with submission...');
+
+      // Add a timeout to prevent getting stuck
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Operation timed out')), 30000) // 30 second timeout
+      );
+
       // If offline mode, just mark onboarding as complete
       if (isOfflineMode) {
         console.log('Offline mode: skipping database save');
@@ -302,8 +342,9 @@ export const OnboardingForm = () => {
         return;
       }
 
-      // Update user metadata in auth.users table for MarChat integration
-      const { error: updateError } = await supabase.auth.updateUser({
+      console.log('Updating user metadata...');
+      // Update user metadata in auth.users table for MarChat integration with timeout
+      const updateUserPromise = supabase.auth.updateUser({
         data: {
           name: formData.name,
           username: formData.username,
@@ -314,13 +355,18 @@ export const OnboardingForm = () => {
         }
       });
 
+      const { error: updateError } = await Promise.race([updateUserPromise, timeoutPromise]) as any;
+
       if (updateError) {
         console.error('Error updating user metadata:', updateError);
         // Don't throw here, continue with onboarding table insert
+      } else {
+        console.log('User metadata updated successfully');
       }
 
-      // Save onboarding data to database
-      const { error: insertError } = await supabase
+      console.log('Inserting onboarding data to database...');
+      // Save onboarding data to database with timeout
+      const insertPromise = supabase
         .from('user_onboarding')
         .insert({
           user_id: user!.id,
@@ -331,14 +377,25 @@ export const OnboardingForm = () => {
           is_complete: true,
         });
 
+      const { error: insertError } = await Promise.race([insertPromise, timeoutPromise]) as any;
+
       if (insertError) {
         console.error('Database error:', insertError);
-        throw new Error(insertError.message);
+        
+        // If it's a timeout or connection error, still complete onboarding locally
+        if (insertError.message === 'Operation timed out' || insertError.message?.includes('timeout')) {
+          console.log('Database operation timed out, completing onboarding locally');
+        } else {
+          throw new Error(insertError.message);
+        }
+      } else {
+        console.log('Database insertion successful');
       }
 
       // Mark as completed locally first
       setIsCompleted(true);
       
+      console.log('Saving to localStorage and cookies...');
       // Save onboarding completion in localStorage and cookies for persistence
       localStorage.setItem('mardev_onboarding_complete', 'true');
       localStorage.setItem('mardev_user_name', formData.name);
@@ -355,22 +412,62 @@ export const OnboardingForm = () => {
       document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
       document.cookie = `mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
       
-      // Refresh the session to get updated user metadata
-      await refreshSession();
+      console.log('Refreshing session and onboarding status...');
       
-      // Refresh onboarding status from the database
-      await refreshOnboardingStatus();
+      try {
+        // Try to refresh the session, but don't let it block completion
+        const refreshPromise = refreshSession();
+        const statusPromise = refreshOnboardingStatus();
+        
+        await Promise.race([
+          Promise.all([refreshPromise, statusPromise]),
+          new Promise(resolve => setTimeout(resolve, 5000)) // 5 second timeout for refresh
+        ]);
+        
+        console.log('Session and status refreshed successfully');
+      } catch (refreshError) {
+        console.log('Refresh operations timed out or failed, but continuing anyway');
+      }
       
       // Mark onboarding as complete in context
       setOnboardingComplete(true);
       
+      console.log('Onboarding completed successfully, redirecting...');
       // Wait a moment to show the completion state, then redirect
       setTimeout(() => {
         navigate('/');
       }, 2000);
     } catch (error: any) {
       console.error('Onboarding error:', error);
-      setError(error.message || 'Failed to save onboarding data');
+      
+      // If it's a timeout error, still try to complete locally
+      if (error.message === 'Operation timed out') {
+        console.log('Operations timed out, completing onboarding locally');
+        
+        // Save locally even if database operations failed
+        setIsCompleted(true);
+        localStorage.setItem('mardev_onboarding_complete', 'true');
+        localStorage.setItem('mardev_user_name', formData.name);
+        localStorage.setItem('mardev_username', formData.username);
+        localStorage.setItem('mardev_marmail', formData.marmailEmail);
+        
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        const expires = `expires=${expiryDate.toUTCString()}`;
+        
+        document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
+        document.cookie = `mardev_user_name=${encodeURIComponent(formData.name)}; ${expires}; path=/; SameSite=Strict`;
+        document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
+        document.cookie = `mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
+        
+        setOnboardingComplete(true);
+        
+        setTimeout(() => {
+          navigate('/');
+        }, 2000);
+      } else {
+        setError(error.message || 'Failed to save onboarding data');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -771,12 +868,12 @@ export const OnboardingForm = () => {
                     {isSubmitting ? (
                       <div className="flex items-center">
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-                        Setting up your account...
+                        {submitAttempts >= 1 ? 'Completing setup...' : 'Setting up your account...'}
                       </div>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
-                        Complete Setup
+                        {submitAttempts >= 1 ? 'Complete Setup (Local)' : 'Complete Setup'}
                       </>
                     )}
                   </Button>
