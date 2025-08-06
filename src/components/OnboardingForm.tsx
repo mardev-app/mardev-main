@@ -87,7 +87,14 @@ export const OnboardingForm = () => {
         return;
       }
 
-      // If offline mode or table doesn't exist, skip checking
+      // Always validate format first
+      if (!validateUsername(formData.username)) {
+        setUsernameStatus('idle');
+        setUsernameError('Username must be 3-20 characters and contain only letters, numbers, hyphens, and underscores');
+        return;
+      }
+
+      // If offline mode or table doesn't exist, still validate format but skip database check
       if (isOfflineMode || !tableExists) {
         setUsernameStatus('available');
         setUsernameError('');
@@ -156,8 +163,38 @@ export const OnboardingForm = () => {
       return;
     }
 
+    if (formData.name.trim().length < 2) {
+      setError('Name must be at least 2 characters long');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!formData.username.trim()) {
+      setError('Please enter a username');
+      setIsSubmitting(false);
+      return;
+    }
+
     if (!validateUsername(formData.username)) {
-      setError('Please enter a valid username (3-20 characters, letters, numbers, hyphens, and underscores only)');
+      setError('Please enter a valid username (3-20 characters, letters, numbers, hyphens, and underscores only, no reserved words)');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!formData.marmailEmail.trim()) {
+      setError('MarMail email is required');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!validateMarMail(formData.marmailEmail)) {
+      setError('Please ensure your MarMail address is valid');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!formData.heardFrom.trim()) {
+      setError('Please let us know how you heard about MarDev');
       setIsSubmitting(false);
       return;
     }
@@ -265,28 +302,70 @@ export const OnboardingForm = () => {
     return emailRegex.test(email);
   };
 
-  // Username validation function
+  // MarMail validation function
+  const validateMarMail = (marmail: string): boolean => {
+    if (!marmail) return false;
+    // Check if it ends with #mardev.app
+    if (!marmail.endsWith('#mardev.app')) return false;
+    // Extract the username part
+    const username = marmail.replace('#mardev.app', '');
+    // Validate the username part
+    return validateUsername(username);
+  };
+
+  // Username validation function - enhanced
   const validateUsername = (username: string): boolean => {
-    const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
-    return usernameRegex.test(username);
+    // Must be 3-20 characters
+    if (username.length < 3 || username.length > 20) return false;
+    // Can only contain letters, numbers, hyphens, and underscores
+    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!usernameRegex.test(username)) return false;
+    // Cannot start or end with hyphens or underscores
+    if (username.startsWith('-') || username.startsWith('_') || 
+        username.endsWith('-') || username.endsWith('_')) return false;
+    // Cannot have consecutive special characters
+    if (username.includes('--') || username.includes('__') || 
+        username.includes('-_') || username.includes('_-')) return false;
+    // Cannot be all numbers
+    if (/^\d+$/.test(username)) return false;
+    // Reserved usernames
+    const reserved = ['admin', 'root', 'api', 'www', 'mail', 'support', 'help', 'info', 'contact', 'about'];
+    if (reserved.includes(username.toLowerCase())) return false;
+    
+    return true;
   };
 
   const handleUsernameChange = (username: string) => {
     // Validate username format
     if (username && !validateUsername(username)) {
-      setUsernameError('Username must be 3-20 characters and contain only letters, numbers, hyphens, and underscores');
+      if (username.length < 3) {
+        setUsernameError('Username must be at least 3 characters long');
+      } else if (username.length > 20) {
+        setUsernameError('Username must be no more than 20 characters long');
+      } else if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        setUsernameError('Username can only contain letters, numbers, hyphens, and underscores');
+      } else if (username.startsWith('-') || username.startsWith('_') || 
+                 username.endsWith('-') || username.endsWith('_')) {
+        setUsernameError('Username cannot start or end with hyphens or underscores');
+      } else if (username.includes('--') || username.includes('__') || 
+                 username.includes('-_') || username.includes('_-')) {
+        setUsernameError('Username cannot have consecutive special characters');
+      } else if (/^\d+$/.test(username)) {
+        setUsernameError('Username cannot be all numbers');
+      } else {
+        const reserved = ['admin', 'root', 'api', 'www', 'mail', 'support', 'help', 'info', 'contact', 'about'];
+        if (reserved.includes(username.toLowerCase())) {
+          setUsernameError('This username is reserved and cannot be used');
+        } else {
+          setUsernameError('Invalid username format');
+        }
+      }
     } else {
       setUsernameError('');
     }
 
-    // Update username
-    setFormData(prev => ({
-      ...prev,
-      username,
-    }));
-
     // Auto-generate MarMail email based on username
-    const cleanUsername = username.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_-]/g, '');
     const marmailEmail = cleanUsername ? `${cleanUsername}#mardev.app` : '';
     
     setFormData(prev => ({
@@ -322,11 +401,11 @@ export const OnboardingForm = () => {
 
   const getUsernameStatusText = () => {
     if (isOfflineMode) {
-      return 'Offline mode - validation disabled';
+      return 'Offline mode - format validation enabled';
     }
     
     if (!tableExists) {
-      return 'Username validation disabled';
+      return 'Format validation enabled - database check disabled';
     }
     
     switch (usernameStatus) {
@@ -399,19 +478,45 @@ export const OnboardingForm = () => {
                     <User className="w-4 h-4 text-purple-400" />
                     Your Full Name
                   </Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    required
-                    disabled={isCompleted}
-                    className="py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This will be displayed in your profile and messages
-                  </p>
+                  <div className="relative">
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                      required
+                      disabled={isCompleted}
+                      className={`py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed ${
+                        formData.name && formData.name.trim().length < 2 ? 'border-red-500 focus:border-red-500' : 
+                        formData.name && formData.name.trim().length >= 2 ? 'border-green-500 focus:border-green-500' : ''
+                      }`}
+                    />
+                    {formData.name && (
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        {formData.name.trim().length >= 2 ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      This will be displayed in your profile and messages
+                    </p>
+                    {formData.name && (
+                      <p className={`text-xs font-medium transition-all duration-300 ${
+                        formData.name.trim().length >= 2 ? 'text-green-500' : 'text-red-500'
+                      }`}>
+                        {formData.name.trim().length >= 2 ? 'Valid name' : 'Name too short'}
+                      </p>
+                    )}
+                  </div>
+                  {formData.name && formData.name.trim().length < 2 && formData.name.length > 0 && (
+                    <p className="text-xs text-red-500 font-medium animate-shake">Name must be at least 2 characters long</p>
+                  )}
                 </div>
 
                 {/* Username Field */}
@@ -475,16 +580,32 @@ export const OnboardingForm = () => {
                       value={formData.marmailEmail.replace('#mardev.app', '')}
                       onChange={(e) => handleInputChange('username', e.target.value)}
                       required
-                      className="pl-3 pr-24 py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02]"
-                      disabled
+                      disabled={isCompleted}
+                      className={`pl-3 pr-24 py-3 bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-purple-500 focus:ring-purple-500/20 transition-all duration-300 focus:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed ${
+                        formData.marmailEmail && !validateMarMail(formData.marmailEmail) ? 'border-red-500 focus:border-red-500' : ''
+                      }`}
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                       <span className="text-muted-foreground text-sm font-medium">#mardev.app</span>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Your complete MarMail address: <span className="text-purple-400 font-medium animate-pulse">{formData.marmailEmail || 'yourname#mardev.app'}</span>
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Your complete MarMail address: <span className="text-purple-400 font-medium animate-pulse">{formData.marmailEmail || 'yourname#mardev.app'}</span>
+                    </p>
+                    {formData.marmailEmail && (
+                      <div className="flex items-center">
+                        {validateMarMail(formData.marmailEmail) ? (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <XCircle className="w-4 h-4 text-red-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {formData.marmailEmail && !validateMarMail(formData.marmailEmail) && (
+                    <p className="text-xs text-red-500 font-medium animate-shake">Please enter a valid MarMail address</p>
+                  )}
                 </div>
 
                 {/* How did you hear about us */}
@@ -544,8 +665,19 @@ export const OnboardingForm = () => {
                 ) : (
                   <Button
                     type="submit"
-                    className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] transform"
-                    disabled={isSubmitting || usernameStatus === 'taken' || usernameStatus === 'checking'}
+                    className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-[1.02] transform disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    disabled={
+                      isSubmitting || 
+                      usernameStatus === 'taken' || 
+                      usernameStatus === 'checking' ||
+                      !formData.name.trim() ||
+                      !formData.username.trim() ||
+                      !validateUsername(formData.username) ||
+                      !formData.marmailEmail.trim() ||
+                      !validateMarMail(formData.marmailEmail) ||
+                      !formData.heardFrom.trim() ||
+                      !!usernameError
+                    }
                   >
                     {isSubmitting ? (
                       <div className="flex items-center">
