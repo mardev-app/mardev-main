@@ -147,7 +147,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const checkOnboardingStatus = async (userId: string) => {
-    if (isOfflineMode) return false;
+    if (isOfflineMode) {
+      // In offline mode, check local storage and cookies only
+      const cookieComplete = getCookie('mardev_onboarding_complete');
+      const localComplete = localStorage.getItem('mardev_onboarding_complete');
+      console.log('Offline mode - Cookie:', cookieComplete, 'localStorage:', localComplete);
+      return cookieComplete === 'true' || localComplete === 'true';
+    }
     
     try {
       console.log('Checking onboarding status for user:', userId);
@@ -167,6 +173,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (localComplete === 'true') {
         console.log('Onboarding complete found in localStorage');
+        // Update cookie to match localStorage
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        const expires = `expires=${expiryDate.toUTCString()}`;
+        document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
         return true;
       }
       
@@ -176,6 +187,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (user?.user_metadata?.onboarding_complete) {
         console.log('Onboarding complete found in user metadata');
+        // Update local storage and cookies to match metadata
+        localStorage.setItem('mardev_onboarding_complete', 'true');
+        const expiryDate = new Date();
+        expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+        const expires = `expires=${expiryDate.toUTCString()}`;
+        document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
         return true;
       }
 
@@ -196,19 +213,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const isComplete = data?.is_complete || false;
       console.log('Final onboarding status:', isComplete);
       
-      // If database says complete but cookies don't, update cookies
-      if (isComplete && cookieComplete !== 'true') {
+      // If database says complete, update cookies and localStorage
+      if (isComplete) {
+        localStorage.setItem('mardev_onboarding_complete', 'true');
         const expiryDate = new Date();
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         const expires = `expires=${expiryDate.toUTCString()}`;
         document.cookie = `mardev_onboarding_complete=true; ${expires}; path=/; SameSite=Strict`;
-        localStorage.setItem('mardev_onboarding_complete', 'true');
       }
       
       return isComplete;
     } catch (error) {
       console.error('Error checking onboarding status:', error);
-      return false;
+      // As fallback, check local storage and cookies even on error
+      const cookieComplete = getCookie('mardev_onboarding_complete');
+      const localComplete = localStorage.getItem('mardev_onboarding_complete');
+      console.log('Error fallback - Cookie:', cookieComplete, 'localStorage:', localComplete);
+      return cookieComplete === 'true' || localComplete === 'true';
     }
   };
 
@@ -260,16 +281,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async () => {
     console.log('SignOut function called, isOfflineMode:', isOfflineMode);
     
-    // Clear onboarding data from cookies and localStorage
-    document.cookie = 'mardev_onboarding_complete=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    document.cookie = 'mardev_user_name=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    document.cookie = 'mardev_username=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    document.cookie = 'mardev_marmail=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    
-    localStorage.removeItem('mardev_onboarding_complete');
-    localStorage.removeItem('mardev_user_name');
-    localStorage.removeItem('mardev_username');
-    localStorage.removeItem('mardev_marmail');
+    // Don't clear onboarding data on sign out - this should persist across sessions
+    // Only clear session-specific data if needed
     
     if (isOfflineMode) {
       // Clear local state in offline mode

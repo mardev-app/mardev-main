@@ -39,9 +39,10 @@ export const OnboardingForm = () => {
     if (isOnboardingComplete && !hasRedirected) {
       console.log('Onboarding already complete, redirecting to home...');
       setHasRedirected(true);
-      navigate('/');
+      // Use replace instead of navigate to avoid history issues
+      window.location.replace('/');
     }
-  }, [isOnboardingComplete, navigate, hasRedirected]);
+  }, [isOnboardingComplete, hasRedirected]);
 
   // Don't render the form if onboarding is complete or we're redirecting
   if (isOnboardingComplete || hasRedirected) {
@@ -49,7 +50,7 @@ export const OnboardingForm = () => {
       <div className="w-screen h-screen bg-gradient-background flex items-center justify-center">
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Redirecting...</p>
+          <p>Redirecting to home...</p>
         </div>
       </div>
     );
@@ -235,7 +236,8 @@ export const OnboardingForm = () => {
     // Set a hard timeout to prevent getting stuck
     const hardTimeout = setTimeout(() => {
       console.log('Hard timeout triggered, completing locally...');
-      setIsCompleted(true);
+      
+      // Save locally first
       localStorage.setItem('mardev_onboarding_complete', 'true');
       localStorage.setItem('mardev_user_name', formData.name);
       localStorage.setItem('mardev_username', formData.username);
@@ -250,12 +252,13 @@ export const OnboardingForm = () => {
       document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
       document.cookie = `mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
       
+      // Update context and navigate
       setOnboardingComplete(true);
       setIsSubmitting(false);
       
-      setTimeout(() => {
-        navigate('/');
-      }, 1000);
+      // Force navigation without showing completion screen
+      console.log('Hard timeout: Navigating to home...');
+      window.location.replace('/');
     }, 10000); // 10 second hard timeout
 
     // Basic validation
@@ -301,8 +304,8 @@ export const OnboardingForm = () => {
       if (isOfflineMode || !tableExists || !user) {
         console.log('Offline mode or no table/user, completing locally...');
         clearTimeout(hardTimeout);
-        setIsCompleted(true);
         
+        // Save locally first
         localStorage.setItem('mardev_onboarding_complete', 'true');
         localStorage.setItem('mardev_user_name', formData.name);
         localStorage.setItem('mardev_username', formData.username);
@@ -317,12 +320,12 @@ export const OnboardingForm = () => {
         document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
         document.cookie = `mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
         
+        // Update context and navigate immediately
         setOnboardingComplete(true);
         setIsSubmitting(false);
         
-        setTimeout(() => {
-          navigate('/');
-        }, 2000);
+        console.log('Local completion: Navigating to home...');
+        window.location.replace('/');
         return;
       }
 
@@ -362,8 +365,8 @@ export const OnboardingForm = () => {
 
       // Always complete locally regardless of database success
       clearTimeout(hardTimeout);
-      setIsCompleted(true);
       
+      // Save locally first
       localStorage.setItem('mardev_onboarding_complete', 'true');
       localStorage.setItem('mardev_user_name', formData.name);
       localStorage.setItem('mardev_username', formData.username);
@@ -378,22 +381,23 @@ export const OnboardingForm = () => {
       document.cookie = `mardev_username=${encodeURIComponent(formData.username)}; ${expires}; path=/; SameSite=Strict`;
       document.cookie = `mardev_marmail=${encodeURIComponent(formData.marmailEmail)}; ${expires}; path=/; SameSite=Strict`;
       
+      // Update context
       setOnboardingComplete(true);
       
       // Quick refresh attempts (don't wait)
       refreshSession().catch(() => {});
       refreshOnboardingStatus().catch(() => {});
       
-      console.log('Onboarding completed successfully, redirecting...');
-      setTimeout(() => {
-        navigate('/');
-      }, 2000);
+      console.log('Database completion: Navigating to home...');
+      setIsSubmitting(false);
+      
+      // Navigate immediately without showing completion screen
+      window.location.replace('/');
 
     } catch (error: any) {
       console.error('Onboarding error:', error);
       clearTimeout(hardTimeout);
       setError(error.message || 'Failed to save onboarding data');
-    } finally {
       setIsSubmitting(false);
     }
   };
