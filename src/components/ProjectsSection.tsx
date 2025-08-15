@@ -17,6 +17,12 @@ const projects = [
     description: 'An email client with a custom mailing protocol with extra privacy and speed in mind',
     url: 'https://mail.mardev.app',
   },
+  {
+    title: 'MDC1337',
+    description: 'Coming soon...',
+    url: 'https://mardev.app',
+    isComingSoon: true,
+  },
 ];
 
 export const ProjectsSection = () => {
