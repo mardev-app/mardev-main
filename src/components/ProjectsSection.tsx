@@ -18,9 +18,15 @@ const projects = [
     url: 'https://mail.mardev.app',
   },
   {
-    title: 'MDC1337',
-    description: 'Coming soon...',
-    url: 'https://mardev.app',
+    title: 'Mar-16',
+    description: 'Coming soon.. a brand new 16-bit OS.',
+    url: 'https://mardev.app/#',
+    isComingSoon: true,
+  },
+  {
+    title: 'MarDev AI',
+    description: 'Coming soon.. an all new code AI with options from Deepseek to Claude.',
+    url: 'https://ai.mardev.app',
     isComingSoon: true,
   },
 ];
