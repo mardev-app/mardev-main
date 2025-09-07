@@ -16,6 +16,7 @@ const projects = [
     title: 'MarMail',
     description: 'An email client with a custom mailing protocol with extra privacy and speed in mind',
     url: 'https://mail.mardev.app',
+    isComingSoon: true,
   },
   {
     title: 'Mar-16',
